@@ -1,5 +1,11 @@
 import requests
 import json
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+import os
+import base64
+from email.mime.text import MIMEText
 
 # Load configuration values from external JSON file (for API key safety)
 with open("api-keys.json", "r") as f:
@@ -9,6 +15,37 @@ with open("api-keys.json", "r") as f:
 api_key = config["openrouter_api_key"]
 referer = config.get("referer", "http://localhost")
 title = config.get("project_title", "Agent Project")
+
+# Define Gmail access scope
+SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
+
+def gmail_authenticate():
+    """
+    Authenticates with the Gmail API and returns a service object.
+    Uses token.json for session reuse.
+    """
+    creds = None
+
+    # Load credentials if token.json exists
+    if os.path.exists("token.json"):
+        from google.oauth2.credentials import Credentials
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+
+    # If no valid credentials, run authentication flow
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        # Save the credentials for future use
+        with open("token.json", "w") as token_file:
+            token_file.write(creds.to_json())
+
+    # Build Gmail API service
+    service = build("gmail", "v1", credentials=creds)
+    return service
 
 def send_prompt(prompt: str) -> str:
     """
@@ -48,3 +85,28 @@ def send_prompt(prompt: str) -> str:
     # Extract and return the generated message from the response
     message = response.json()["choices"][0]["message"]["content"]
     return message
+
+def create_draft(service, sender, to, subject, message_text):
+    """
+    Creates a draft email in the authenticated user's Gmail account.
+    
+    Args:
+        service: Authenticated Gmail API service object
+        sender (str): Your Gmail address
+        to (str): Recipient address
+        subject (str): Subject line
+        message_text (str): Email body content
+    """
+    # Build MIME message
+    message = MIMEText(message_text)
+    message["to"] = to
+    message["from"] = sender
+    message["subject"] = subject
+
+    # Encode message to base64
+    raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    body = {"message": {"raw": raw_message}}
+
+    # Send request to create draft
+    draft = service.users().drafts().create(userId="me", body=body).execute()
+    print("✅ Draft created successfully! Draft ID:", draft["id"])

@@ -1,1 +1,1 @@
-# mail-drafter-agent
+A task-oriented LLM agent that generates polite and professional email drafts based on structured or natural language prompts, and automatically saves them as Gmail drafts via Google API integration.

@@ -15,6 +15,15 @@ if __name__ == "__main__":
     # Send the prompt to the LLM agent and receive the generated email draft
     email = agent.send_prompt(user_prompt)
 
+    service = agent.gmail_authenticate()
+    
+     # Set your fields
+    sender_email = "your_email@gmail.com"
+    recipient = "x@x.com"
+    subject = "Refund Request – Damaged Television"
+
+    # Create the draft
+    agent.create_draft(service, sender_email, recipient, subject, email)
     # Print the formatted email output to the console
     print("\n--- E-Mail Draft ---\n")
     print(email)
